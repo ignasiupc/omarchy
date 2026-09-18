@@ -1,0 +1,237 @@
+diff --git i/bin/omarchy-audio-output-switch w/bin/omarchy-audio-output-switch
+index 11d2a356..36e41f70 100755
+--- i/bin/omarchy-audio-output-switch
++++ w/bin/omarchy-audio-output-switch
+@@ -42,7 +42,7 @@ else
+   next_sink_is_muted=false
+ fi
+ 
+-if [[ $next_sink_is_muted == "true" ]] || (( next_sink_volume == 0 )); then
++if [[ $next_sink_is_muted == "true" ]]; then
+   icon_state="muted"
+ elif (( next_sink_volume <= 33 )); then
+   icon_state="low"
+diff --git i/bin/omarchy-audio-output-volume w/bin/omarchy-audio-output-volume
+index d599c376..e60113b5 100755
+--- i/bin/omarchy-audio-output-volume
++++ w/bin/omarchy-audio-output-volume
+@@ -77,7 +77,7 @@ else
+ fi
+ 
+ percent=$(volume_percent)
+-if volume_muted || ((${percent:-0} == 0)); then
++if volume_muted; then
+   icon="volume-muted"
+ elif ((percent <= 33)); then
+   icon="volume-low"
+diff --git i/shell/plugins/osd/OsdModel.js w/shell/plugins/osd/OsdModel.js
+index 19a02cec..2a2431a7 100644
+--- i/shell/plugins/osd/OsdModel.js
++++ w/shell/plugins/osd/OsdModel.js
+@@ -4,14 +4,14 @@ function clamp(value, min, max) {
+ 
+ // The widest glyph `iconFor` can return. The progress OSD sizes its icon
+ // column to it so the bar keeps its place as the icon changes.
+-var widestIcon = "󰕾"
++var widestIcon = ""
+ 
+ function iconFor(name, percent) {
+   var n = String(name || "").toLowerCase()
+-  if (n === "volume-muted" || n === "volume-mute" || n === "muted" || n === "mute") return "󰖁"
+-  if (n === "volume-low") return "󰕿"
+-  if (n === "volume-medium") return "󰖀"
+-  if (n === "volume-high" || n === "volume") return "󰕾"
++  if (n === "volume-muted" || n === "volume-mute" || n === "muted" || n === "mute") return ""
++  if (n === "volume-low") return ""
++  if (n === "volume-medium") return ""
++  if (n === "volume-high" || n === "volume") return ""
+   if (n === "microphone-muted" || n === "microphone-off" || n === "mic-muted" || n === "mic-off") return "󰍭"
+   if (n === "microphone" || n === "mic") return "󰍬"
+   if (n === "keyboard") return "󰌌"
+@@ -28,10 +28,9 @@ function iconFor(name, percent) {
+   if (n === "media-next" || n === "player-next") return "󰒭"
+   if (n === "media-previous" || n === "player-previous") return "󰒮"
+   if (n.length > 0) return name
+-  if (percent <= 0) return "󰖁"
+-  if (percent <= 33) return "󰕿"
+-  if (percent <= 66) return "󰖀"
+-  return "󰕾"
++  if (percent <= 33) return ""
++  if (percent <= 66) return ""
++  return ""
+ }
+ 
+ function stateForShow(iconName, rawMessage, rawValue, rawMax, rawProgressText, rawDuration) {
+diff --git i/shell/plugins/panels/audio/Panel.qml w/shell/plugins/panels/audio/Panel.qml
+index dd415852..bb384464 100644
+--- i/shell/plugins/panels/audio/Panel.qml
++++ w/shell/plugins/panels/audio/Panel.qml
+@@ -401,14 +401,13 @@ Panel {
+   function outputIcon(volume) {
+     // Match the old Waybar pulseaudio glyph set. The Material Design speaker
+     // icons render visually smaller in JetBrainsMono Nerd Font.
+-    if (!sink || !sink.audio) return ""
+-    if (isHeadphones(sink)) return "󰋋"
+     if (outputMuted) return ""
++    if (!sink || !sink.audio) return ""
++    if (isHeadphones(sink)) return "󰋋"
+     var v = volume === undefined ? outputVolume : volume
+     if (v >= 0.67) return ""
+     if (v >= 0.34) return ""
+-    if (v > 0) return ""
+-    return ""
++    return ""
+   }
+ 
+   function inputIcon() {
+@@ -432,13 +431,10 @@ Panel {
+ 
+   function showVolumeOsd(volume) {
+     if (!bar || !bar.shell) return
+-    // No icon lets the OSD pick its speaker glyph from the percentage, the
+-    // same way the volume keys do. Headphones and mute stay explicit: the
+-    // percentage can't express them (scrolling doesn't unmute).
+-    var payload = { value: Math.round(volume * 100) }
+-    if (sink && sink.audio && isHeadphones(sink)) payload.icon = "󰋋"
+-    else if (outputMuted) payload.icon = "volume-muted"
+-    bar.shell.summon("omarchy.osd", JSON.stringify(payload))
++    bar.shell.summon("omarchy.osd", JSON.stringify({
++      icon: outputIcon(volume),
++      value: Math.round(volume * 100)
++    }))
+   }
+ 
+   function setInputVolume(v) {
+diff --git i/test/shell.d/audio-output-switch-test.sh w/test/shell.d/audio-output-switch-test.sh
+new file mode 100755
+index 00000000..6a7108b5
+--- /dev/null
++++ w/test/shell.d/audio-output-switch-test.sh
+@@ -0,0 +1,79 @@
++#!/bin/bash
++
++set -euo pipefail
++
++source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
++
++test_tmp=$(mktemp -d)
++trap 'rm -rf "$test_tmp"' EXIT
++
++stub_bin="$test_tmp/bin"
++log="$test_tmp/calls"
++mkdir -p "$stub_bin"
++
++cat >"$stub_bin/omarchy-audio-tuning" <<'STUB'
++#!/bin/bash
++exit 0
++STUB
++
++cat >"$stub_bin/omarchy-audio-output-sink" <<'STUB'
++#!/bin/bash
++printf 'stub_sink\n'
++STUB
++
++cat >"$stub_bin/omarchy-audio-output-set-default" <<'STUB'
++#!/bin/bash
++exit 0
++STUB
++
++cat >"$stub_bin/pactl" <<'STUB'
++#!/bin/bash
++if [[ $1 == "-f" ]]; then
++  printf '[{"index":1,"name":"stub_sink","description":"Stub output","ports":[],"volume":{"front-left":{"value_percent":"%s%%"}}}]\n' "${STUB_PERCENT:-50}"
++  exit 0
++fi
++
++case "$1" in
++  get-default-sink) printf 'stub_sink\n' ;;
++  get-sink-volume) printf 'Volume: front-left: 0 / %s%% / 0.00 dB\n' "${STUB_PERCENT:-50}" ;;
++  get-sink-mute) printf 'Mute: %s\n' "${STUB_MUTED:-no}" ;;
++esac
++STUB
++
++cat >"$stub_bin/omarchy-osd" <<'STUB'
++#!/bin/bash
++printf 'omarchy-osd %s\n' "$*" >>"$TEST_LOG"
++STUB
++
++chmod +x "$stub_bin"/*
++
++icon_for_percent() {
++  : >"$log"
++  STUB_PERCENT="$1" \
++    STUB_MUTED="${2:-no}" \
++    TEST_LOG="$log" \
++    PATH="$stub_bin:$PATH" \
++    bash "$ROOT/bin/omarchy-audio-output-switch" >/dev/null
++
++  sed -n 's/.*-i volume-\([^ ]*\).*/\1/p' "$log"
++}
++
++assert_icon() {
++  local percent="$1" expected="$2" muted="${3:-no}" actual
++  actual=$(icon_for_percent "$percent" "$muted")
++
++  if [[ $actual == "$expected" ]]; then
++    pass "output switch at $percent% muted=$muted shows $expected"
++  else
++    fail "output switch at $percent% muted=$muted shows $expected" \
++      "expected: $expected
++actual:   $actual"
++  fi
++}
++
++assert_icon 0 low
++assert_icon 0 muted yes
++assert_icon 33 low
++assert_icon 34 medium
++assert_icon 66 medium
++assert_icon 67 high
+diff --git i/test/shell.d/audio-output-volume-test.sh w/test/shell.d/audio-output-volume-test.sh
+index d275effc..eff95238 100755
+--- i/test/shell.d/audio-output-volume-test.sh
++++ w/test/shell.d/audio-output-volume-test.sh
+@@ -60,7 +60,8 @@ actual:   $actual"
+   fi
+ }
+ 
+-assert_icon 0 volume-muted
++assert_icon 0 volume-low
++assert_icon 0 volume-muted yes
+ assert_icon 50 volume-muted yes
+ 
+ # Bands come from omarchy-audio-output-switch, which already maps level to icon
+diff --git i/test/shell.d/osd-test.sh w/test/shell.d/osd-test.sh
+index 3861ba63..da344eea 100644
+--- i/test/shell.d/osd-test.sh
++++ w/test/shell.d/osd-test.sh
+@@ -7,20 +7,18 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+ run_node_test <<'JS'
+ const osd = requireFromRoot('shell/plugins/osd/OsdModel.js')
+ 
+-assertEqual(osd.iconFor('', 0), osd.iconFor('muted', 50), 'osd falls back to muted icon at zero percent')
++assertEqual(osd.iconFor('', 0), osd.iconFor('volume-low', 50), 'osd falls back to low icon at zero percent')
++assert(osd.iconFor('', 0) !== osd.iconFor('muted', 0), 'osd distinguishes zero percent from mute')
+ assertEqual(osd.iconFor('volume-high', 1), osd.iconFor('', 100), 'osd maps high volume aliases')
+ 
+-// Each volume level needs a distinct glyph. These are the Material Design
+-// speakers, matching every other icon in iconFor(). The MDI names do not
+-// describe wave counts: volume_low draws a bare speaker, volume_medium one
+-// wave, volume_high two, and volume_off a slashed speaker.
+-assertEqual(osd.iconFor('volume-low', 20), '󰕿', 'osd shows the low volume speaker')
+-assertEqual(osd.iconFor('volume-medium', 50), '󰖀', 'osd shows the medium volume speaker')
+-assertEqual(osd.iconFor('volume-high', 80), '󰕾', 'osd shows the high volume speaker')
+-assertEqual(osd.iconFor('volume-muted', 20), '󰖁', 'osd shows the slashed speaker when muted')
++// Keep the same Font Awesome speaker family used by the audio bar and panel,
++// so the icon does not change shape when the OSD appears.
++assertEqual(osd.iconFor('volume-low', 20), '', 'osd shows the low volume speaker')
++assertEqual(osd.iconFor('volume-medium', 50), '', 'osd shows the medium volume speaker')
++assertEqual(osd.iconFor('volume-high', 80), '', 'osd shows the high volume speaker')
++assertEqual(osd.iconFor('volume-muted', 20), '', 'osd shows the crossed speaker when muted')
+ 
+-// The audio panel's bar scroll sends no icon at all, so the percentage
+-// fallback must land on the same speakers as the named levels.
++// Percentage-only callers must land on the same speakers as named levels.
+ assertEqual(osd.iconFor('', 20), osd.iconFor('volume-low', 20), 'osd fallback matches low')
+ assertEqual(osd.iconFor('', 50), osd.iconFor('volume-medium', 50), 'osd fallback matches medium')
+ assertEqual(osd.iconFor('', 80), osd.iconFor('volume-high', 80), 'osd fallback matches high')
