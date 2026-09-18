@@ -401,14 +401,13 @@ Panel {
   function outputIcon(volume) {
     // Match the old Waybar pulseaudio glyph set. The Material Design speaker
     // icons render visually smaller in JetBrainsMono Nerd Font.
-    if (!sink || !sink.audio) return ""
-    if (isHeadphones(sink)) return "󰋋"
     if (outputMuted) return ""
+    if (!sink || !sink.audio) return ""
+    if (isHeadphones(sink)) return "󰋋"
     var v = volume === undefined ? outputVolume : volume
     if (v >= 0.67) return ""
     if (v >= 0.34) return ""
-    if (v > 0) return ""
-    return ""
+    return ""
   }
 
   function inputIcon() {
@@ -432,13 +431,10 @@ Panel {
 
   function showVolumeOsd(volume) {
     if (!bar || !bar.shell) return
-    // No icon lets the OSD pick its speaker glyph from the percentage, the
-    // same way the volume keys do. Headphones and mute stay explicit: the
-    // percentage can't express them (scrolling doesn't unmute).
-    var payload = { value: Math.round(volume * 100) }
-    if (sink && sink.audio && isHeadphones(sink)) payload.icon = "󰋋"
-    else if (outputMuted) payload.icon = "volume-muted"
-    bar.shell.summon("omarchy.osd", JSON.stringify(payload))
+    bar.shell.summon("omarchy.osd", JSON.stringify({
+      icon: outputIcon(volume),
+      value: Math.round(volume * 100)
+    }))
   }
 
   function setInputVolume(v) {

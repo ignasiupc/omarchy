@@ -60,7 +60,8 @@ actual:   $actual"
   fi
 }
 
-assert_icon 0 volume-muted
+assert_icon 0 volume-low
+assert_icon 0 volume-muted yes
 assert_icon 50 volume-muted yes
 
 # Bands come from omarchy-audio-output-switch, which already maps level to icon

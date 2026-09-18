@@ -7,20 +7,18 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 run_node_test <<'JS'
 const osd = requireFromRoot('shell/plugins/osd/OsdModel.js')
 
-assertEqual(osd.iconFor('', 0), osd.iconFor('muted', 50), 'osd falls back to muted icon at zero percent')
+assertEqual(osd.iconFor('', 0), osd.iconFor('volume-low', 50), 'osd falls back to low icon at zero percent')
+assert(osd.iconFor('', 0) !== osd.iconFor('muted', 0), 'osd distinguishes zero percent from mute')
 assertEqual(osd.iconFor('volume-high', 1), osd.iconFor('', 100), 'osd maps high volume aliases')
 
-// Each volume level needs a distinct glyph. These are the Material Design
-// speakers, matching every other icon in iconFor(). The MDI names do not
-// describe wave counts: volume_low draws a bare speaker, volume_medium one
-// wave, volume_high two, and volume_off a slashed speaker.
-assertEqual(osd.iconFor('volume-low', 20), '󰕿', 'osd shows the low volume speaker')
-assertEqual(osd.iconFor('volume-medium', 50), '󰖀', 'osd shows the medium volume speaker')
-assertEqual(osd.iconFor('volume-high', 80), '󰕾', 'osd shows the high volume speaker')
-assertEqual(osd.iconFor('volume-muted', 20), '󰖁', 'osd shows the slashed speaker when muted')
+// Keep the same Font Awesome speaker family used by the audio bar and panel,
+// so the icon does not change shape when the OSD appears.
+assertEqual(osd.iconFor('volume-low', 20), '', 'osd shows the low volume speaker')
+assertEqual(osd.iconFor('volume-medium', 50), '', 'osd shows the medium volume speaker')
+assertEqual(osd.iconFor('volume-high', 80), '', 'osd shows the high volume speaker')
+assertEqual(osd.iconFor('volume-muted', 20), '', 'osd shows the crossed speaker when muted')
 
-// The audio panel's bar scroll sends no icon at all, so the percentage
-// fallback must land on the same speakers as the named levels.
+// Percentage-only callers must land on the same speakers as named levels.
 assertEqual(osd.iconFor('', 20), osd.iconFor('volume-low', 20), 'osd fallback matches low')
 assertEqual(osd.iconFor('', 50), osd.iconFor('volume-medium', 50), 'osd fallback matches medium')
 assertEqual(osd.iconFor('', 80), osd.iconFor('volume-high', 80), 'osd fallback matches high')

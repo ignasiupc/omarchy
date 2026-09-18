@@ -77,7 +77,7 @@ else
 fi
 
 percent=$(volume_percent)
-if volume_muted || ((${percent:-0} == 0)); then
+if volume_muted; then
   icon="volume-muted"
 elif ((percent <= 33)); then
   icon="volume-low"

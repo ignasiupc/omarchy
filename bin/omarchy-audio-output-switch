@@ -42,7 +42,7 @@ else
   next_sink_is_muted=false
 fi
 
-if [[ $next_sink_is_muted == "true" ]] || (( next_sink_volume == 0 )); then
+if [[ $next_sink_is_muted == "true" ]]; then
   icon_state="muted"
 elif (( next_sink_volume <= 33 )); then
   icon_state="low"
